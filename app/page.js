@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState("");
   const [error, setError] = useState("");
+  const reportRef = useRef(null);
 
   async function runAudit() {
     if (!url.trim()) {
@@ -34,6 +35,127 @@ export default function Home() {
     }
   }
 
+  function getFilename(ext) {
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace(/^www\./, "").replace(/\./g, "-");
+      const path = u.pathname.replace(/\/$/, "").replace(/\//g, "-").replace(/^-/, "");
+      const date = new Date().toISOString().split("T")[0];
+      return `audit-${host}${path ? "-" + path : ""}-${date}.${ext}`;
+    } catch {
+      return `audit-${new Date().toISOString().split("T")[0]}.${ext}`;
+    }
+  }
+
+  function downloadPDF() {
+    if (!reportRef.current) return;
+    const reportHTML = reportRef.current.innerHTML;
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${getFilename("pdf").replace(".pdf", "")}</title>
+          <style>
+            @page { size: letter; margin: 0.75in; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+              color: #1a1a1a;
+              line-height: 1.6;
+              font-size: 11pt;
+              max-width: 100%;
+            }
+            h1 { font-size: 22pt; margin: 0 0 8px; }
+            h2 { font-size: 16pt; margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #ddd; page-break-after: avoid; }
+            h3 { font-size: 13pt; margin: 18px 0 6px; page-break-after: avoid; }
+            p { margin: 8px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; page-break-inside: avoid; }
+            th { text-align: left; padding: 10px 12px; background: #f5f5f0; border-bottom: 2px solid #ddd; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.4px; color: #666; }
+            td { padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: top; }
+            tr:nth-child(even) td { background: #fafaf7; }
+            ul, ol { margin: 8px 0 14px; padding-left: 22px; }
+            li { margin-bottom: 6px; }
+            hr { border: none; border-top: 1px solid #ddd; margin: 20px 0; }
+            strong { font-weight: 600; }
+            .header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1a1a1a; }
+            .header p { color: #666; font-size: 10pt; margin: 4px 0 0; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Practice area page audit</h1>
+            <p>${url} &nbsp;•&nbsp; ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+          </div>
+          ${reportHTML}
+          <script>
+            window.onload = function() {
+              setTimeout(function() { window.print(); }, 300);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
+  function downloadWord() {
+    if (!reportRef.current) return;
+    const reportHTML = reportRef.current.innerHTML;
+    const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const fullHTML = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset="utf-8">
+          <title>Practice area page audit</title>
+          <!--[if gte mso 9]>
+          <xml>
+            <w:WordDocument>
+              <w:View>Print</w:View>
+              <w:Zoom>100</w:Zoom>
+            </w:WordDocument>
+          </xml>
+          <![endif]-->
+          <style>
+            @page WordSection1 { size: 8.5in 11in; margin: 0.75in; }
+            div.WordSection1 { page: WordSection1; }
+            body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1a1a1a; }
+            h1 { font-size: 22pt; margin: 0 0 8px; }
+            h2 { font-size: 16pt; margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #cccccc; }
+            h3 { font-size: 13pt; margin: 18px 0 6px; }
+            p { margin: 8px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
+            th { text-align: left; padding: 10px 12px; background: #f5f5f0; border-bottom: 2px solid #cccccc; font-size: 9pt; }
+            td { padding: 10px 12px; border-bottom: 1px solid #eeeeee; vertical-align: top; }
+            ul, ol { margin: 8px 0 14px; padding-left: 22px; }
+            li { margin-bottom: 6px; }
+            hr { border: none; border-top: 1px solid #cccccc; margin: 20px 0; }
+            strong { font-weight: 600; }
+            .header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1a1a1a; }
+            .header p { color: #666666; font-size: 10pt; margin: 4px 0 0; }
+          </style>
+        </head>
+        <body>
+          <div class="WordSection1">
+            <div class="header">
+              <h1>Practice area page audit</h1>
+              <p>${url} &nbsp;•&nbsp; ${dateStr}</p>
+            </div>
+            ${reportHTML}
+          </div>
+        </body>
+      </html>
+    `;
+    const blob = new Blob(["\ufeff", fullHTML], { type: "application/msword" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = getFilename("doc");
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   function styleStatusCell(cell) {
     const trimmed = cell.trim();
     if (trimmed.startsWith("✅")) {
@@ -51,7 +173,6 @@ export default function Home() {
   function renderMarkdown(md) {
     let html = md;
 
-    // Tables
     html = html.replace(/(\|.+\|\n)+/g, (match) => {
       const lines = match.trim().split("\n");
       if (lines.length < 2) return match;
@@ -82,15 +203,10 @@ export default function Home() {
       return t;
     });
 
-    // H2 headings
     html = html.replace(/^## (.+)$/gm, '<h2 style="margin:2.5rem 0 1rem;font-size:24px;font-weight:600;color:#1a1a1a;padding-bottom:10px;border-bottom:2px solid #f0ede5;">$1</h2>');
-    // H3 headings
     html = html.replace(/^### (.+)$/gm, '<h3 style="margin:1.75rem 0 0.75rem;font-size:18px;font-weight:600;color:#1a1a1a;">$1</h3>');
-
-    // Bold
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="font-weight:600;color:#1a1a1a;">$1</strong>');
 
-    // Bullet lists
     html = html.replace(/(^- .+\n?)+/gm, (match) => {
       const items = match.trim().split("\n").map((l) => l.replace(/^- /, ""));
       return (
@@ -100,7 +216,6 @@ export default function Home() {
       );
     });
 
-    // Numbered lists
     html = html.replace(/(^\d+\. .+\n?)+/gm, (match) => {
       const items = match.trim().split("\n").map((l) => l.replace(/^\d+\. /, ""));
       return (
@@ -110,7 +225,6 @@ export default function Home() {
       );
     });
 
-    // Paragraphs
     html = html
       .split("\n\n")
       .map((block) => {
@@ -127,7 +241,6 @@ export default function Home() {
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "3rem 1.5rem 6rem" }}>
-      {/* Header */}
       <div style={{ marginBottom: "2.5rem" }}>
         <h1 style={{ margin: "0 0 10px", fontSize: 36, fontWeight: 600, letterSpacing: "-0.5px" }}>
           Practice area page audit
@@ -137,7 +250,6 @@ export default function Home() {
         </p>
       </div>
 
-      {/* Input */}
       <div style={{ display: "flex", gap: 10, marginBottom: "1rem" }}>
         <input
           type="url"
@@ -178,7 +290,6 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Loading */}
       {loading && (
         <div
           style={{
@@ -208,7 +319,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div
           style={{
@@ -225,19 +335,57 @@ export default function Home() {
         </div>
       )}
 
-      {/* Report */}
       {report && (
-        <div
-          style={{
-            marginTop: "2.5rem",
-            padding: "2.5rem 3rem",
-            background: "white",
-            border: "1px solid #e5e5e0",
-            borderRadius: 16,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-          }}
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(report) }}
-        />
+        <>
+          <div style={{ marginTop: "2.5rem", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button
+              onClick={downloadPDF}
+              style={{
+                padding: "10px 18px",
+                fontSize: 14,
+                fontWeight: 500,
+                background: "white",
+                color: "#1a1a1a",
+                border: "1px solid #d4d1c7",
+                borderRadius: 8,
+                cursor: "pointer",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#f7f5f0")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "white")}
+            >
+              ↓ Download PDF
+            </button>
+            <button
+              onClick={downloadWord}
+              style={{
+                padding: "10px 18px",
+                fontSize: 14,
+                fontWeight: 500,
+                background: "white",
+                color: "#1a1a1a",
+                border: "1px solid #d4d1c7",
+                borderRadius: 8,
+                cursor: "pointer",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#f7f5f0")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "white")}
+            >
+              ↓ Download Word doc
+            </button>
+          </div>
+          <div
+            ref={reportRef}
+            style={{
+              marginTop: "1rem",
+              padding: "2.5rem 3rem",
+              background: "white",
+              border: "1px solid #e5e5e0",
+              borderRadius: 16,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            }}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(report) }}
+          />
+        </>
       )}
 
       <style>{`
